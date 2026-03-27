@@ -11,7 +11,7 @@
   body.is-mobile .card{ padding: 12px; }
   body.is-mobile .mailbox-config-section .section-header{ margin-bottom: 8px; }
   body.is-mobile .mailbox-config-section .config-item{ margin: 8px 0; }
-  body.is-mobile .range-container{ gap: 8px; }
+  body.is-mobile .len-stepper{ width: 100%; }
   body.is-mobile .mailbox-actions{ gap: 6px !important; }
   body.is-mobile .mailbox-actions .btn{ height: 44px; }
   body.is-mobile .email-display{ padding: 12px; min-height: 64px; }
@@ -91,8 +91,8 @@
   .mailbox-config-section{ min-height: auto; }
   .mailbox-actions{ display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px; align-items: stretch; }
   .mailbox-actions .btn{ width: 100%; height: 48px; }
-  .range-container{ flex-direction: column; align-items: stretch; gap: 12px; }
-  .range-display{ justify-content: center; min-width: auto; }
+  .len-stepper{ width: 100%; }
+  .rule-preview{ font-size: 12px; }
   .control-row{ flex-direction: column; align-items: stretch; gap: 12px; }
   .btn-group{ flex-direction: column; }
   .email-item .email-actions{ opacity: 1; }

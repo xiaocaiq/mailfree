@@ -145,8 +145,13 @@ export async function handleApiRequest(request, db, mailDomains, options = { moc
   }
 
   if (path === '/api/generate') {
-    const lengthParam = Number(url.searchParams.get('length') || 0);
-    const randomId = generateRandomId(lengthParam || undefined);
+    const prefixRaw = String(url.searchParams.get('prefix') || '').trim().toLowerCase();
+    const validPrefix = /^[a-z0-9._-]{0,32}$/i.test(prefixRaw);
+    if (!validPrefix) return new Response('非法前缀', { status: 400 });
+    const randomLengthRaw = Number(url.searchParams.get('length') || '8');
+    const randomLength = Math.max(1, Math.min(30, Number.isFinite(randomLengthRaw) ? Math.floor(randomLengthRaw) : 8));
+    const randomPart = generateRandomId(Math.max(8, randomLength)).slice(0, randomLength);
+    const randomId = `${prefixRaw}${randomPart}`;
     const domains = isMock ? MOCK_DOMAINS : (Array.isArray(mailDomains) ? mailDomains : [(mailDomains || 'temp.example.com')]);
     const domainIdx = Math.max(0, Math.min(domains.length - 1, Number(url.searchParams.get('domainIndex') || 0)));
     const chosenDomain = domains[domainIdx] || domains[0];

@@ -1,8 +1,9 @@
 ## API 接口
 
 ### 🎲 邮箱管理
-- `GET /api/generate` - 生成新的临时邮箱
-  - 返回: `{ "email": "random@domain.com", "expires": timestamp }`
+- `GET /api/generate` - 生成新的临时邮箱（支持自定义前缀）
+  - 参数: `length`（随机字符串长度，1-30）、`domainIndex`（域名索引）、`prefix`（可选，邮箱前缀，仅字母/数字/._-，最多32位）
+  - 返回: `{ "email": "bananaxxxxxxxx@domain.com", "expires": timestamp }`
 - `GET /api/mailboxes` - 获取历史邮箱列表
   - 参数: `limit`（页面大小）, `offset`（偏移量）
   - 返回: 邮箱列表数组

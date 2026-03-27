@@ -16,7 +16,14 @@ async function mockApi(path, options){
   // generate
   if (url.pathname === '/api/generate'){
     const len = Number(url.searchParams.get('length') || '8');
-    const id = (window.MockData?.mockGenerateId ? window.MockData.mockGenerateId(len) : String(Math.random()).slice(2,10));
+    const prefix = String(url.searchParams.get('prefix') || '').trim().toLowerCase();
+    if (!/^[a-z0-9._-]{0,32}$/i.test(prefix)) {
+      return new Response('非法前缀', { status: 400 });
+    }
+    const randomLen = Math.max(1, Math.min(30, isNaN(len) ? 8 : Math.floor(len)));
+    const rawRandom = (window.MockData?.mockGenerateId ? window.MockData.mockGenerateId(Math.max(8, randomLen)) : String(Math.random()).slice(2).padEnd(randomLen, '0'));
+    const randomPart = String(rawRandom || '').slice(0, randomLen);
+    const id = `${prefix}${randomPart}`;
     const domain = window.__MOCK_STATE__.domains[Number(url.searchParams.get('domainIndex')||0)] || 'example.com';
     const email = `${id}@${domain}`;
     // 记录至内存历史
@@ -243,6 +250,11 @@ const els = {
   customOverlay: document.getElementById('custom-overlay'),
   customLocalOverlay: document.getElementById('custom-local-overlay'),
   createCustomOverlay: document.getElementById('create-custom-overlay'),
+  prefixInput: document.getElementById('prefix-input'),
+  lenInput: document.getElementById('len-input'),
+  lenDecrease: document.getElementById('len-decrease'),
+  lenIncrease: document.getElementById('len-increase'),
+  rulePreview: document.getElementById('rule-preview'),
   compose: document.getElementById('compose'),
   composeModal: document.getElementById('compose-modal'),
   composeClose: document.getElementById('compose-close'),
@@ -411,19 +423,45 @@ function showConfirm(message, onConfirm, onCancel = null) {
 }
 
 
-const lenRange = document.getElementById('len-range');
-const lenVal = document.getElementById('len-val');
 const domainSelect = document.getElementById('domain-select');
 // 右侧自定义已移除，保留覆盖层方式
-const STORAGE_KEYS = { domain: 'mailfree:lastDomain', length: 'mailfree:lastLen' };
+const STORAGE_KEYS = { domain: 'mailfree:lastDomain', length: 'mailfree:lastLen', prefix: 'mailfree:lastPrefix' };
+const PREFIX_PATTERN = /^[A-Za-z0-9._-]{0,32}$/;
+const RANDOM_LEN_MIN = 1;
+const RANDOM_LEN_MAX = 30;
+const RANDOM_LEN_DEFAULT = 8;
 
-function updateRangeProgress(input){
-  if (!input) return;
-  const min = Number(input.min || 0);
-  const max = Number(input.max || 100);
-  const val = Number(input.value || min);
-  const percent = ((val - min) * 100) / (max - min);
-  input.style.background = `linear-gradient(to right, var(--primary) ${percent}%, var(--border-light) ${percent}%)`;
+function clampRandomLength(value){
+  if (value === null || typeof value === 'undefined' || String(value).trim() === '') return RANDOM_LEN_DEFAULT;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return RANDOM_LEN_DEFAULT;
+  return Math.max(RANDOM_LEN_MIN, Math.min(RANDOM_LEN_MAX, Math.floor(n)));
+}
+
+function normalizePrefix(value){
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 32);
+}
+
+function getConfiguredPrefix(){
+  return normalizePrefix(els.prefixInput?.value || '');
+}
+
+function getConfiguredRandomLength(){
+  return clampRandomLength(els.lenInput?.value ?? localStorage.getItem(STORAGE_KEYS.length));
+}
+
+function getSelectedDomainText(){
+  if (!domainSelect || !domainSelect.options || !domainSelect.options.length) return 'example.com';
+  const idx = domainSelect.selectedIndex >= 0 ? domainSelect.selectedIndex : 0;
+  return String(domainSelect.options[idx]?.textContent || domainSelect.options[0]?.textContent || 'example.com').trim();
+}
+
+function updateRulePreview(){
+  if (!els.rulePreview) return;
+  const prefix = getConfiguredPrefix();
+  const randomPart = 'x'.repeat(getConfiguredRandomLength());
+  const domain = getSelectedDomainText();
+  els.rulePreview.textContent = `示例：${prefix}${randomPart}@${domain}`;
 }
 
 // 右侧自定义入口已移除
@@ -489,20 +527,49 @@ if (els.createCustomOverlay){
   };
 }
 
-// 初始化长度：默认读取历史值（8-30 之间），否则为 8
-if (lenRange && lenVal){
-  const storedLen = Number(localStorage.getItem(STORAGE_KEYS.length) || '8');
-  const clamped = Math.max(8, Math.min(30, isNaN(storedLen) ? 8 : storedLen));
-  lenRange.value = String(clamped);
-  lenVal.textContent = String(clamped);
-  updateRangeProgress(lenRange);
-  lenRange.addEventListener('input', ()=>{
-    const v = Number(lenRange.value);
-    const cl = Math.max(8, Math.min(30, isNaN(v) ? 8 : v));
-    lenVal.textContent = String(cl);
-    localStorage.setItem(STORAGE_KEYS.length, String(cl));
-    updateRangeProgress(lenRange);
+// 初始化前缀和随机长度（按用户偏好持久化）
+if (els.prefixInput){
+  const storedPrefix = normalizePrefix(localStorage.getItem(STORAGE_KEYS.prefix) || '');
+  els.prefixInput.value = storedPrefix;
+  els.prefixInput.addEventListener('input', () => {
+    const normalized = normalizePrefix(els.prefixInput.value);
+    if (normalized !== els.prefixInput.value) els.prefixInput.value = normalized;
+    localStorage.setItem(STORAGE_KEYS.prefix, normalized);
+    updateRulePreview();
   });
+}
+
+if (els.lenInput){
+  const applyLength = () => {
+    const normalized = clampRandomLength(els.lenInput.value);
+    els.lenInput.value = String(normalized);
+    localStorage.setItem(STORAGE_KEYS.length, String(normalized));
+    updateRulePreview();
+    return normalized;
+  };
+  els.lenInput.value = String(clampRandomLength(localStorage.getItem(STORAGE_KEYS.length)));
+  els.lenInput.addEventListener('input', () => {
+    const onlyDigits = String(els.lenInput.value || '').replace(/[^0-9]/g, '');
+    if (onlyDigits !== String(els.lenInput.value || '')) els.lenInput.value = onlyDigits;
+    updateRulePreview();
+  });
+  els.lenInput.addEventListener('change', applyLength);
+  els.lenInput.addEventListener('blur', applyLength);
+  if (els.lenDecrease){
+    els.lenDecrease.addEventListener('click', () => {
+      const next = clampRandomLength(Number(els.lenInput.value || RANDOM_LEN_DEFAULT) - 1);
+      els.lenInput.value = String(next);
+      applyLength();
+    });
+  }
+  if (els.lenIncrease){
+    els.lenIncrease.addEventListener('click', () => {
+      const next = clampRandomLength(Number(els.lenInput.value || RANDOM_LEN_DEFAULT) + 1);
+      els.lenInput.value = String(next);
+      applyLength();
+    });
+  }
+  applyLength();
 }
 
 // 将域名列表填充到下拉框，并恢复上次选择
@@ -513,10 +580,12 @@ function populateDomains(domains){
   const stored = localStorage.getItem(STORAGE_KEYS.domain) || '';
   const idx = stored ? list.indexOf(stored) : -1;
   domainSelect.selectedIndex = idx >= 0 ? idx : 0;
-  domainSelect.addEventListener('change', ()=>{
+  domainSelect.onchange = ()=>{
     const opt = domainSelect.options[domainSelect.selectedIndex];
     if (opt) localStorage.setItem(STORAGE_KEYS.domain, opt.textContent || '');
-  }, { once: true });
+    updateRulePreview();
+  };
+  updateRulePreview();
 }
 
 // 拉取域名列表（后端在 server.js 解析自环境变量，前端通过一个轻量接口暴露）
@@ -628,14 +697,28 @@ async function loadDomains(){
 els.gen.onclick = async () => {
   try {
     setButtonLoading(els.gen, '正在生成…');
-    const len = Number((lenRange && lenRange.value) || localStorage.getItem(STORAGE_KEYS.length) || 8);
+    const len = getConfiguredRandomLength();
     const domainIndex = Number(domainSelect?.value || 0);
-    const r = await api(`/api/generate?length=${Math.max(8, Math.min(30, isNaN(len) ? 8 : len))}&domainIndex=${isNaN(domainIndex)?0:domainIndex}`);
+    const prefix = getConfiguredPrefix();
+    if (!PREFIX_PATTERN.test(prefix)) {
+      showToast('邮箱前缀仅支持字母/数字/._-', 'warn');
+      return;
+    }
+    if (els.prefixInput && prefix !== (els.prefixInput.value || '')) {
+      els.prefixInput.value = prefix;
+    }
+    const params = new URLSearchParams({
+      length: String(len),
+      domainIndex: String(isNaN(domainIndex) ? 0 : domainIndex)
+    });
+    if (prefix) params.set('prefix', prefix);
+    const r = await api(`/api/generate?${params.toString()}`);
     if (!r.ok){ const t = await r.text(); throw new Error(t); }
     const data = await r.json();
     // 持久化选择
     try{
-      localStorage.setItem(STORAGE_KEYS.length, String(Math.max(8, Math.min(30, isNaN(len) ? 8 : len))));
+      localStorage.setItem(STORAGE_KEYS.length, String(len));
+      localStorage.setItem(STORAGE_KEYS.prefix, prefix);
       const opt = domainSelect?.options?.[domainIndex];
       if (opt) localStorage.setItem(STORAGE_KEYS.domain, opt.textContent || '');
     }catch(_){ }

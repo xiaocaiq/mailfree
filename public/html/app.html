@@ -107,20 +107,34 @@
               </div>
               <div class="config-item">
                 <label class="config-label">
-                  <span class="label-icon">📏</span>
-                  <span>用户名长度</span>
+                  <span class="label-icon">🏷️</span>
+                  <span>邮箱前缀</span>
                 </label>
-                <div class="range-container">
-                  <input id="len-range" class="range" type="range" min="8" max="30" step="1" value="8" />
-                  <div class="range-display">
-                    <span id="len-val" class="len-value">8</span>
-                    <span class="len-unit">位</span>
+                <input id="prefix-input" class="field-input config-input" type="text" maxlength="32" placeholder="例如：banana（可选）" />
+              </div>
+              <div class="config-item">
+                <label class="config-label">
+                  <span class="label-icon">📏</span>
+                  <span>随机字符串长度</span>
+                </label>
+                <div class="len-stepper">
+                  <input id="len-input" class="len-stepper-input" type="number" min="1" max="30" step="1" value="8" inputmode="numeric" />
+                  <div class="len-stepper-actions">
+                    <button id="len-decrease" class="len-stepper-btn" type="button" aria-label="减少长度">-</button>
+                    <button id="len-increase" class="len-stepper-btn" type="button" aria-label="增加长度">+</button>
                   </div>
                 </div>
               </div>
+              <div class="config-item">
+                <label class="config-label">
+                  <span class="label-icon">🔎</span>
+                  <span>邮箱规则预览</span>
+                </label>
+                <div id="rule-preview" class="rule-preview">示例：xxxxxxxx@example.com</div>
+              </div>
                <div class="generate-action">
-                 <button id="gen" class="btn btn-generate">
-                   <span class="btn-icon">🎲</span>
+                  <button id="gen" class="btn btn-generate">
+                    <span class="btn-icon">🎲</span>
                    <span>随机生成</span>
                  </button>
                  <button id="toggle-custom" class="btn btn-secondary btn-sm" title="自定义邮箱">切换自定义</button>
