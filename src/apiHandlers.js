@@ -2,7 +2,7 @@ import { extractEmail, generateRandomId } from './commonUtils.js';
 import { buildMockEmails, buildMockMailboxes, buildMockEmailDetail } from './mockData.js';
 import { getOrCreateMailboxId, getMailboxIdByAddress, recordSentEmail, updateSentEmail, ensureSentEmailsTable, toggleMailboxPin, 
   listUsersWithCounts, createUser, updateUser, deleteUser, assignMailboxToUser, getUserMailboxes,
-  listDomains, addDomain, removeDomain } from './database.js';
+  listDomains, addDomain, removeDomain, clearUserMailboxesAndData } from './database.js';
 import { parseEmailBody, extractVerificationCode } from './emailParser.js';
 import { sendEmailWithResend, sendBatchWithResend, getEmailFromResend, updateEmailInResend, cancelEmailInResend } from './emailSender.js';
 
@@ -151,6 +151,21 @@ export async function handleApiRequest(request, db, options = { mockOnly: false,
     const n = Math.min(all.length, Math.max(3, Math.min(8, Math.floor(Math.random()*6) + 3)));
     const list = all.slice(0, n);
     return Response.json(list);
+  }
+  if (isMock && request.method === 'POST' && path.startsWith('/api/users/') && path.endsWith('/mailboxes/clear')){
+    const id = Number(path.split('/')[3]);
+    if (!id) return new Response('无效ID', { status: 400 });
+    const all = globalThis.__MOCK_USER_MAILBOXES__?.get(id) || [];
+    const count = Array.isArray(all) ? all.length : 0;
+    globalThis.__MOCK_USER_MAILBOXES__?.set(id, []);
+    return Response.json({
+      success: true,
+      clearedBindings: count,
+      deletedMailboxes: count,
+      deletedMessages: 0,
+      deletedSentRecords: 0,
+      skippedSharedMailboxes: 0
+    });
   }
 
   // 返回域名列表给前端
@@ -311,6 +326,18 @@ export async function handleApiRequest(request, db, options = { mockOnly: false,
     if (!id) return new Response('无效ID', { status: 400 });
     try{ const list = await getUserMailboxes(db, id); return Response.json(list || []); }
     catch(e){ return new Response('查询失败', { status: 500 }); }
+  }
+
+  if (!isMock && request.method === 'POST' && path.startsWith('/api/users/') && path.endsWith('/mailboxes/clear')){
+    if (!isStrictAdmin()) return new Response('Forbidden', { status: 403 });
+    const id = Number(path.split('/')[3]);
+    if (!id) return new Response('无效ID', { status: 400 });
+    try{
+      const result = await clearUserMailboxesAndData(db, id);
+      return Response.json(result);
+    }catch(e){
+      return new Response('清空失败: ' + (e?.message || e), { status: 500 });
+    }
   }
 
   // 自定义创建邮箱：{ local, domainIndex }

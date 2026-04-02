@@ -46,6 +46,7 @@ const els = {
   editLimit: document.getElementById('edit-limit'),
   editSendCheck: document.getElementById('edit-send-check'),
   editPass: document.getElementById('edit-pass'),
+  editClearMailboxes: document.getElementById('edit-clear-mailboxes'),
   editDelete: document.getElementById('edit-delete'),
   adminConfirmModal: document.getElementById('admin-confirm-modal'),
   adminConfirmClose: document.getElementById('admin-confirm-close'),
@@ -314,6 +315,31 @@ window.deleteUser = async (userId) => {
   }catch(e){ showToast('删除失败：' + (e?.message||e), 'warn'); }
 }
 
+window.clearUserMailboxData = async (userId, username = '') => {
+  try{
+    const r = await api(`/api/users/${userId}/mailboxes/clear`, { method:'POST' });
+    if (!r.ok){ const t = await r.text(); throw new Error(t); }
+    const data = await r.json().catch(()=>({}));
+    const clearedBindings = Number(data?.clearedBindings || 0);
+    const deletedMailboxes = Number(data?.deletedMailboxes || 0);
+    const deletedMessages = Number(data?.deletedMessages || 0);
+    const deletedSentRecords = Number(data?.deletedSentRecords || 0);
+    const skippedShared = Number(data?.skippedSharedMailboxes || 0);
+    showToast(
+      `已清空${username ? ` ${username}` : ''}：解绑${clearedBindings}、删邮箱${deletedMailboxes}、删邮件${deletedMessages}、删发件${deletedSentRecords}${skippedShared>0 ? `（${skippedShared}个共享邮箱已跳过）` : ''}`,
+      'success'
+    );
+    if (els.userMailboxes){
+      els.userMailboxes.innerHTML = username
+        ? `<div style="margin-bottom:8px">用户 <strong>${username}</strong> 的邮箱：</div><div class="domain-empty">暂无已绑定邮箱</div>`
+        : '';
+    }
+    loadUsers();
+  }catch(e){
+    showToast('清空失败：' + (e?.message||e), 'warn');
+  }
+}
+
 // 切换发件权限
 window.toggleSend = async (userId, current) => {
   const next = current ? 0 : 1;
@@ -478,6 +504,12 @@ window.openEdit = (id, name, role, limit, canSend) => {
     }catch(e){ showToast('保存失败：' + (e?.message||e), 'warn'); }
     finally { restoreButton(els.editSave); }
   };
+  if (els.editClearMailboxes) {
+    els.editClearMailboxes.onclick = () => openAdminConfirm(
+      `确定清空用户 ${name} 名下的所有邮箱及相关数据吗？`,
+      async () => { await clearUserMailboxData(id, name); }
+    );
+  }
   els.editDelete.onclick = () => openAdminConfirm('确定删除该用户及其关联邮箱绑定（不会删除邮箱实体与邮件）？', async () => { await deleteUser(id); });
 };
 els.editClose.onclick = () => els.editModal.classList.remove('show');

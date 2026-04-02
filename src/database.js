@@ -333,6 +333,88 @@ export async function deleteUser(db, userId){
   await db.prepare('DELETE FROM users WHERE id = ?').bind(userId).run();
 }
 
+export async function clearUserMailboxesAndData(db, userId){
+  const uid = Number(userId || 0);
+  if (!Number.isInteger(uid) || uid <= 0) throw new Error('无效用户ID');
+
+  const linkedRes = await db.prepare(`
+    SELECT um.mailbox_id, m.address
+    FROM user_mailboxes um
+    JOIN mailboxes m ON m.id = um.mailbox_id
+    WHERE um.user_id = ?
+  `).bind(uid).all();
+  const linked = linkedRes?.results || [];
+
+  if (!linked.length) {
+    return {
+      success: true,
+      clearedBindings: 0,
+      deletedMailboxes: 0,
+      deletedMessages: 0,
+      deletedSentRecords: 0,
+      skippedSharedMailboxes: 0
+    };
+  }
+
+  // 先解除该用户与邮箱的绑定关系
+  await db.prepare('DELETE FROM user_mailboxes WHERE user_id = ?').bind(uid).run();
+
+  let deletedMailboxes = 0;
+  let deletedMessages = 0;
+  let deletedSentRecords = 0;
+  let skippedSharedMailboxes = 0;
+
+  for (const item of linked) {
+    const mailboxId = Number(item?.mailbox_id || 0);
+    const address = String(item?.address || '').trim().toLowerCase();
+    if (!mailboxId) continue;
+
+    // 若该邮箱仍被其他用户使用，则仅清除当前用户绑定，不删除实体数据
+    const sharedRes = await db.prepare('SELECT COUNT(1) AS c FROM user_mailboxes WHERE mailbox_id = ?').bind(mailboxId).all();
+    const sharedCount = Number(sharedRes?.results?.[0]?.c || 0);
+    if (sharedCount > 0) {
+      skippedSharedMailboxes += 1;
+      continue;
+    }
+
+    // 删除收件数据
+    const msgCountRes = await db.prepare('SELECT COUNT(1) AS c FROM messages WHERE mailbox_id = ?').bind(mailboxId).all();
+    const msgCount = Number(msgCountRes?.results?.[0]?.c || 0);
+    if (msgCount > 0) {
+      await db.prepare('DELETE FROM messages WHERE mailbox_id = ?').bind(mailboxId).run();
+      deletedMessages += msgCount;
+    }
+
+    // 删除发件记录（按发件地址）
+    if (address) {
+      try {
+        const sentCountRes = await db.prepare('SELECT COUNT(1) AS c FROM sent_emails WHERE from_addr = ?').bind(address).all();
+        const sentCount = Number(sentCountRes?.results?.[0]?.c || 0);
+        if (sentCount > 0) {
+          await db.prepare('DELETE FROM sent_emails WHERE from_addr = ?').bind(address).run();
+          deletedSentRecords += sentCount;
+        }
+      } catch (_) {
+        // 兼容极端场景：sent_emails 尚未创建或查询失败
+      }
+    }
+
+    await db.prepare('DELETE FROM mailboxes WHERE id = ?').bind(mailboxId).run();
+    const verifyRes = await db.prepare('SELECT COUNT(1) AS c FROM mailboxes WHERE id = ?').bind(mailboxId).all();
+    const exists = Number(verifyRes?.results?.[0]?.c || 0) > 0;
+    if (!exists) deletedMailboxes += 1;
+  }
+
+  return {
+    success: true,
+    clearedBindings: linked.length,
+    deletedMailboxes,
+    deletedMessages,
+    deletedSentRecords,
+    skippedSharedMailboxes
+  };
+}
+
 export async function listUsersWithCounts(db, { limit = 50, offset = 0 } = {}){
   const sql = `
     SELECT u.id, u.username, u.role, u.mailbox_limit, u.can_send, u.created_at,

@@ -1,349 +1,211 @@
-# 临时邮箱 Cloudflare Worker（模块化结构）
+# Mailfree 临时邮箱（Cloudflare Workers）
 
-当前状态：V3.5 性能优化以及手机端专门适配 
+基于 Cloudflare Workers + D1 + R2 的临时邮箱系统，支持收件、发件、用户权限和管理后台。
 
-一个基于 Cloudflare Workers 和 D1 数据库的临时邮箱服务。
+## 功能概览
 
-## 📸 项目展示
-### 体验地址： https://mailexhibit.dinging.top/
+- 临时邮箱生成：支持邮箱前缀 + 随机字符串长度规则
+- 域名动态管理：在管理后台实时添加/删除域名（不再依赖 `MAIL_DOMAIN`）
+- 历史邮箱与置顶：支持分页、置顶、删除
+- 邮件收件箱：列表、详情、批量查询、删除、清空、EML 下载
+- 发件箱（Resend）：单发、批量、查询状态、取消、删除记录
+- 用户体系：严格管理员 / 高级用户 / 普通用户 / 访客（guest）
+- 账户数据清理：支持一键清空某个账户下全部邮箱及相关数据
 
-### 体验账号： guest
-### 体验密码： admin
-### 页面展示
+## 技术栈
 
-#### 登陆
-![登陆页面](pic/dlu.png)
-#### 首页
-![首页展示](pic/shouye.png)
+- Runtime: Cloudflare Workers (Modules)
+- Database: Cloudflare D1
+- Object Storage: Cloudflare R2（存储原始 EML）
+- Frontend: 原生 HTML/CSS/JS（`public/`）
 
-### 手机端生成与历史
-<div style="display: flex; gap: 20px; justify-content: center; margin: 20px 0;">
-  <img src="./pic/phone/shouye.png" alt="手机端生成邮箱" style="height: 400px;" />
-  <img src="./pic/phone/lishi.png" alt="手机端历史邮箱" style="height: 400px;" />
-</div>
+## 快速开始（已按当前代码校对）
 
-#### [更多展示点击查看](docs/zhanshi.md)
+### 1) 前置要求
 
-## 功能特性
+- Node.js 18+
+- npm
+- Cloudflare 账号（已开通 Workers / D1 / R2 / Email Routing）
+- Wrangler CLI
 
-### 🎨 现代化界面
-- 🌈 **毛玻璃效果**：采用现代化的毛玻璃（Glassmorphism）设计风格
-- 🎯 **简约美观**：浅色背景，动态渐变，视觉效果出色
-- 📱 **响应式设计**：完美适配桌面和移动设备
-- ✨ **动画效果**：平滑的过渡动画和微交互反馈
+安装 Wrangler 并登录：
 
-### 📧 邮箱管理
-- 🎲 **智能生成**：随机生成临时邮箱地址，支持自定义长度和域名
-- 📋 **历史记录**：自动保存历史生成的邮箱，方便重复使用
-- 🗑️ **便捷删除**：支持删除单个邮箱和批量管理
-- 🔄 **一键切换**：快速在不同邮箱间切换
-
-### 🛠️ 用户管理功能
-
-- **角色与权限**: 三层权限模型（严格管理员 Strict Admin / 高级用户 Admin / 普通用户 User），严格管理员拥有全部权限
-- **用户列表**: 查看用户名、角色、邮箱上限/已用、是否允许发件、创建时间等关键信息
-- **用户邮箱**: 查看指定用户名下的邮箱列表，支持一键复制邮箱地址
-- **创建用户**: 通过用户名/密码/角色创建新用户
-- **编辑用户**: 支持改名、重置密码、角色切换、发件权限开关、调整邮箱上限
-- **分配邮箱**: 批量为用户分配邮箱地址（支持多行粘贴，自动格式校验）
-- **域名管理**: 在管理页动态添加/删除可用域名（至少保留 1 个），无需再改环境变量
-- **删除用户**: 解除用户与邮箱的绑定关系（不会删除邮箱实体与邮件数据）
-- **前端权限防护**: 管理页进入前进行快速鉴权，未授权自动跳转，避免内容闪现
-- **操作确认与反馈**: 关键操作提供二次确认弹窗与统一 Toast 提示，操作状态与结果清晰可见
-
-
-### 💌 邮件功能
-- 📧 **实时接收**：自动接收和显示邮件，支持HTML和纯文本
-- 🔄 **自动刷新**：选中邮箱后每8秒自动检查新邮件
-- 🔍 **智能预览**：自动提取和高亮显示验证码内容
-- 📖 **详细查看**：优化的邮件详情显示，支持完整内容渲染
-- 📋 **一键复制**：智能识别验证码并优先复制，或复制完整邮件内容
-- 🗑️ **灵活删除**：支持删除单个邮件或清空整个邮箱
-- ✉️ **发件支持（Resend）**：已接入 Resend，可使用临时邮箱地址发送邮件并查看发件记录（发件箱），支持自定义发件显示名（`fromName`）与批量/定时/取消等能力。详情见《[Resend 密钥获取与配置教程](docs/resend.md)》
-
-## 版本与路线图
-
-### V1
-- 前后端基础功能与认证体系
-- 邮箱生成、历史记录、邮件列表与详情、清空/删除
-- 智能验证码提取与复制、一键复制邮件内容
-- 自动刷新与基本的 UI 交互
-
-### V2
-- [x] 前端模板解耦：将首页 UI 从 `public/app.js` 内联模板拆分为独立的 `public/templates/app.html`，降低耦合、便于维护
-- [x] 发件（Resend）与发件箱：支持通过 Resend 发送邮件、自定义发件显示名（`fromName`）
-- [x] 加邮箱置顶功能，提升用户体验
-- [X] 路由逻辑优化 防止首页泄露
-### V3
-
-#### 登录与权限
-- [X] 新增登录系统与三层权限：超级管理员（Strict Admin）/ 高级用户（Admin）/ 普通用户（User）。
-- [X] 默认严格管理员用户名来自 `ADMIN_NAME`（默认 `admin`），密码来自 `ADMIN_PASSWORD`。
-#### 管理后台（用户管理）
-- [X] 入口：登录后右上角"用户管理"（严格管理员和演示模式默认显示）。
-- [X] 查看用户列表（用户名、角色、是否可发件、邮箱上限/已用、创建时间）。
-- [X] 查看某个用户的邮箱列表。
-- [X] 创建用户（用户名/密码/角色）。
-- [X] 编辑用户（改名、改密码、切换角色、是否允许发件、调整邮箱上限）。
-- [X] 删除用户（不会删除邮箱实体与邮件，仅解除绑定关系）。
-- [X] 分配邮箱给指定用户（支持批量，前端做格式校验）。
-
-#### 路由与加载策略
-- [X] 首屏严格防护：未认证访问 `/` 会直接返回加载页模板，前端不再闪现首页内容。
-- [X] 加载页 `templates/loading.html` 统一处理：
-  - [X] 带 `?redirect=/目标路径` 时轮询会话直至可用再跳转，确保登录后的稳定落地；
-  - [X] 未带 `redirect` 或超时则转到登录页。
-- [X] 前端路由守卫 `public/route-guard.js`：
-  - [X] `RouteGuard.goLoading(target)` 可显式跳到加载页并指定回落目标；
-  - [X] 对非法路径在服务端 302 到加载页，由前端依据会话再落到首页/登录。
-
-### V3.5
-
-#### 性能优化
-- [X] **极大提升响应速度**：优化数据库查询效率，减少延迟，显著改善用户体验
-- [X] **前端资源优化**：减少静态资源加载时间，提升页面渲染速度
-
-#### 存储增强
-- [X] **R2 存储原邮件**：新增 Cloudflare R2 对象存储支持，用于保存邮件原始内容
-- [X] **混合存储策略**：D1 数据库存储邮件元数据，R2 存储完整邮件内容，优化存储成本
-
-#### 移动端适配
-- [X] **手机端完美适配**：全面优化移动设备体验，响应式设计更加流畅
-- [X] **移动端专属界面**：针对手机屏幕优化的界面布局和交互方式
-- [X] **触控优化**：优化触屏操作体验，支持手势操作
-## API 文档
-
-完整接口说明已迁移至独立文档，包含登录认证、邮箱与邮件、发件（Resend）以及“用户管理”相关接口。
-
-- 查看文档：[`docs/api.md`](docs/api.md)
-
-详见《[V3 版本更新日志](docs/v3.md)》。
-
-
-### 🔧 技术特性
-- ⚡ **基于 Cloudflare**：利用全球网络，访问速度快
-- 💾 **D1 数据库**：可靠的数据存储，支持数据持久化
-- 🔐 **安全认证**：内置登录系统，保护数据安全
-- 🎯 **API 完善**：提供完整的 RESTful API 接口
-
-## 部署步骤
-
-### 1. 创建 D1 数据库
-
-> 提示：也可在 Cloudflare 控制台在线创建 D1 数据库。
-
-```bash
-# 安装 Wrangler CLI
-npm install -g wrangler
-
-# 登录 Cloudflare
-wrangler login
-
-# 创建 D1 数据库
-wrangler d1 create temp-mail-db
-```
-
-### 2. 创建 R2 存储桶（用于保存邮件原文）
-
-```bash
-# 创建 R2 存储桶（用于存储完整的 EML 邮件文件）
-wrangler r2 bucket create mail-eml
-```
-
-### 3. 配置 wrangler.toml（已改为模块化入口）
-
-复制返回的数据库 ID，更新 `wrangler.toml` 文件：
-
-```toml
-main = "src/server.js"
-
-# D1 数据库绑定
-[[d1_databases]]
-binding = "TEMP_MAIL_DB"
-database_name = "temp-mail-db"
-database_id = "你的数据库ID"
-
-# R2 存储桶绑定（用于保存完整 EML 内容）
-[[r2_buckets]]
-binding = "MAIL_EML"
-bucket_name = "你的R2存储桶名称"
-
-# 环境变量
-[vars]
-ADMIN_NAME = "admin_name" # 超级管理员用户名 （不配名称 默认为admin）
-ADMIN_PASSWORD = "password" # 超级管理员密码
-JWT_TOKEN = "token" # 随便一串字符串
-# RESEND_API_KEY  # 发送邮件需要配置
-```
-
-### 4. 本地与线上部署（推荐 wrangler）
-
-1) 本地开发
 ```bash
 npm i -g wrangler
 wrangler login
-# 可在 wrangler.toml 的 [vars] 中配置本地变量（仅用于 dev/deploy via wrangler）
+```
+
+### 2) 克隆项目
+
+```bash
+git clone <你的仓库地址>
+cd mailfree
+```
+
+### 3) 创建 D1 与 R2
+
+```bash
+# 创建 D1
+wrangler d1 create mailfree
+
+# 创建 R2（用于邮件原文 .eml）
+wrangler r2 bucket create mailfree
+```
+
+### 4) 配置 `wrangler.toml`
+
+请将 `wrangler.toml` 中绑定改成你自己的资源：
+
+```toml
+name = "mailfree"
+main = "src/server.js"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "TEMP_MAIL_DB"
+database_name = "你的D1名称"
+database_id = "你的D1 ID"
+
+[[r2_buckets]]
+binding = "MAIL_EML"
+bucket_name = "你的R2桶名"
+
+[assets]
+directory = "public"
+binding = "ASSETS"
+
+[vars]
+ADMIN_NAME = "admin"
+```
+
+### 5) 配置 Secrets / Variables
+
+必需（建议用 Secret）：
+
+```bash
+wrangler secret put ADMIN_PASSWORD
+wrangler secret put JWT_TOKEN
+```
+
+可选：
+
+```bash
+# 访客模式（登录用户名固定 guest）
+wrangler secret put GUEST_PASSWORD
+
+# 发件功能（Resend）
+wrangler secret put RESEND_API_KEY
+
+# 邮件转发规则（可选，也可放 Variables）
+wrangler secret put FORWARD_RULES
+```
+
+### 6) 初始化数据库表结构
+
+```bash
+wrangler d1 execute <你的D1名称> --file=./d1-init-basic.sql --remote
+```
+
+本地调试库初始化（可选）：
+
+```bash
+wrangler d1 execute <你的D1名称> --file=./d1-init-basic.sql --local
+```
+
+### 7) 本地运行
+
+```bash
 wrangler dev
 ```
 
-2) 线上部署
+打开：`http://127.0.0.1:8787/login.html`
+
+## 首次上线后的必做步骤
+
+现在域名为**全动态配置**，没有默认域名。
+
+1. 用严格管理员登录（`ADMIN_NAME` / `ADMIN_PASSWORD`）
+2. 进入 `/admin.html`
+3. 在「域名管理」里添加至少 1 个域名
+
+未添加域名前，`/api/generate` 与 `/api/create` 会返回 400（无法生成邮箱）。
+
+## 部署到 Cloudflare
+
 ```bash
-# 设置敏感变量（Secret）
-wrangler secret put ADMIN_PASSWORD
-wrangler secret put JWT_TOKEN
-# （可选，如需发件）设置 Resend 密钥
-wrangler secret put RESEND_API_KEY
-# 非敏感变量可放在 wrangler.toml 的 [vars] 或控制台 Variables 中
 wrangler deploy
 ```
 
-> 提示：如需开启发件功能，还需在 Resend 完成发信域名验证并创建 API Key。不会配置？请查看《[Resend 密钥获取与配置教程](docs/resend.md)》。
+如果你使用 Cloudflare Dashboard 的 Git 集成部署，请在 Worker 设置中同步配置：
 
-3) Cloudflare 连接 GitHub 仓库部署
-- 如果使用 Git 集成而非 wrangler deploy，请在 Dashboard → Workers → Settings → Variables 中手动配置上述变量
-- `[assets]` 已指向 `public/`，静态页面由 Workers + Assets 提供
+- Secrets：`ADMIN_PASSWORD`、`JWT_TOKEN`（以及可选项）
+- Variables：`ADMIN_NAME`（可选）、`FORWARD_RULES`（可选）
+- Bindings：D1 / R2 / Assets
 
-### 4.5 初始化 D1 表结构（首次部署）
-只要绑定了d1 默认可以自行创建，如果不能自动创建再手动创建
-```bash
-# 方式一：表结构
-wrangler d1 execute TEMP_MAIL_DB --file=./d1-init-basic.sql
-```
+## 邮件接收配置（非常重要）
 
-### 4.6 首次添加域名（必须）
+每个你在后台添加的域名，都要在 Cloudflare Email Routing 完成配置：
 
-- 现在域名完全走动态配置，不再依赖 `MAIL_DOMAIN`。
-- 首次部署后，请先使用严格管理员账号进入管理页，在「域名管理」中添加至少 1 个域名。
-- 未添加域名前，前台不会生成邮箱。
+1. 域名 DNS/MX 配置正确
+2. Email Routing 开启并生效
+3. Catch-all 或对应规则指向当前 Worker
 
-### 5. 配置邮件路由（必需用于收取真实邮件）
+否则该域名虽然可用于“生成地址”，但收不到真实邮件。
 
-如果需要接收真实邮件，需要在 Cloudflare 控制台配置邮件路由：
+## 环境变量与绑定说明
 
-1. 进入域名的 Email Routing 设置
-2. 添加 Catch-all 规则
-3. 目标设置为 Worker: `temp-mail-worker`
+| 名称 | 类型 | 必需 | 说明 |
+|---|---|---|---|
+| `TEMP_MAIL_DB` | D1 绑定 | 是 | 主数据库 |
+| `MAIL_EML` | R2 绑定 | 是 | 邮件原文存储（下载/详情依赖） |
+| `ASSETS` | Assets 绑定 | 是 | 托管 `public/` 静态资源 |
+| `ADMIN_PASSWORD` | Secret | 是 | 严格管理员密码 |
+| `JWT_TOKEN` | Secret | 是 | JWT 签名密钥 |
+| `ADMIN_NAME` | Variable | 否 | 严格管理员用户名，默认 `admin` |
+| `GUEST_PASSWORD` | Secret | 否 | 启用访客账号 `guest` |
+| `RESEND_API_KEY` | Secret | 否 | 启用发件功能 |
+| `FORWARD_RULES` | Variable/Secret | 否 | 本地前缀转发规则 |
 
-### 6. 设置自定义域名（可选）
+兼容别名（不推荐，仅兼容旧配置）：
 
-在 Worker 设置中添加自定义域名，或使用 workers.dev 子域名。
+- `JWT_SECRET`（等价 `JWT_TOKEN`）
+- `ADMIN_PASS`（等价 `ADMIN_PASSWORD`）
+- `RESEND_TOKEN` / `RESEND`（等价 `RESEND_API_KEY`）
 
-## 环境变量说明
+## FORWARD_RULES 示例
 
-| 变量名 | 说明 | 必需 |
-|--------|------|------|
-| TEMP_MAIL_DB | D1 数据库绑定 | 是 |
-| MAIL_EML | R2 存储桶绑定，用于保存完整的邮件 EML 文件 | 是 |
-| ADMIN_PASSWORD | 后台访问密码（严格管理员登录） | 是 |
-| ADMIN_NAME | 严格管理员用户名（默认 `admin`） | 否 |
-| JWT_TOKEN / JWT_SECRET | JWT 签名密钥（二选一，推荐 `JWT_TOKEN`） | 是 |
-| RESEND_API_KEY | Resend 发件 API Key。使用发件功能需要配置 | 否 |
-| FORWARD_RULES | 邮件转发（转发到指定邮箱）。支持两种格式：`JSON 数组` 或 `逗号分隔 KV` | 否 |
-
-> 发件相关的域名验证与密钥创建步骤，请参考《[docs/resend.md](docs/resend.md)》；如果你不清楚如何配置，请直接按照教程一步步操作。
-### FORWARD_RULES 示例
-> 说明：规则按前缀匹配，命中第一个前缀即转发；`*` 为兜底规则。未配置或设置为空/disabled/none 时不进行任何转发。
-
-- 逗号分隔（KV）：
-  - `FORWARD_RULES="vip=a@example.com,news=b@example.com,*=fallback@example.com"`
+- KV 形式：
+  - `vip=a@example.com,news=b@example.com,*=fallback@example.com`
 - JSON 数组：
-  - `FORWARD_RULES='[{"prefix":"vip","email":"a@example.com"},{"prefix":"*","email":"fallback@example.com"}]'`
-- 仅指定某些前缀（无兜底）：
-  - `FORWARD_RULES="code=a@example.com,login=b@example.com"`
-- 禁用转发：
-  - `FORWARD_RULES=""` 或 `FORWARD_RULES="disabled"` 或 `FORWARD_RULES="none"` 或 `FORWARD_RULES="[]"`
-  转发的目标地址需要在 Cloudflare 的 Email Addresses 中添加/验证
+  - `[{"prefix":"vip","email":"a@example.com"},{"prefix":"*","email":"fallback@example.com"}]`
+- 关闭转发：
+  - 空字符串、`disabled`、`none`、`[]`
 
+## API 文档
 
+- 完整接口文档：`docs/api.md`
+- Resend 发件说明：`docs/resend.md`
 
-## 注意事项
-- **静态资源缓存**：Workers + Assets 对静态文件可能有缓存。更新 `index.html` 后如未生效，请在 Cloudflare 控制台进行 `Purge Everything`，并在浏览器执行强制刷新（Ctrl/Cmd+F5）。
-- **图标路径**：favicon 建议使用相对路径（例如 `favicon.svg`），避免挂在子路径时 404。
-- **邮件路由**：若需接收真实邮件，请正确配置 Cloudflare Email Routing（MX 记录、Catch‑all → 绑定到 Worker）。
-- **R2 存储**：R2 用于保存完整的邮件 EML 文件，支持邮件下载功能。R2 有免费额度限制，建议定期清理过期邮件。
-- **数据库与费用**：D1 有免费额度限制；建议定期清理过期邮件以节省存储空间与额度。
-- **安全**：务必在生产环境修改 `ADMIN_PASSWORD`、`JWT_TOKEN`，并限制仓库/项目的敏感信息暴露。
+## 常见问题
 
-## Resend 教程（发件）
+### 1) 登录失败
 
-- 教程文档：请见《[Resend 密钥获取与配置教程](docs/resend.md)》。
-  - 覆盖域名验证、创建 API Key、在 Cloudflare Workers 设置 `RESEND_API_KEY` Secret 的完整流程
-  - 详细列出后端发件相关接口（`/api/send`、`/api/send/batch`、`/api/send/:id`、`/api/send/:id/cancel`、`/api/sent` 等）与示例
-  - 前端已集成“发件箱”，在生成/选择邮箱后可直接发信并查看记录；自定义发件显示名通过 `fromName` 字段传入
+- 检查 `ADMIN_PASSWORD`、`JWT_TOKEN` 是否已配置
+- 严格管理员用户名默认是 `admin`，可通过 `ADMIN_NAME` 改
 
-### 发件相关 API（摘要）
-- `POST /api/send` 发送单封邮件（支持 `fromName` 自定义发件显示名）
-- `POST /api/send/batch` 批量发送
-- `GET /api/send/:id` 查询单封邮件发送状态
-- `PATCH /api/send/:id` 更新（如定时 `scheduledAt`）
-- `POST /api/send/:id/cancel` 取消发送
-- `GET /api/sent?from=xxx@domain` 获取发件记录列表
-- `GET /api/sent/:id` 获取发件详情
-- `DELETE /api/sent/:id` 删除发件记录
+### 2) 生成邮箱提示无可用域名
 
-完整用法与注意事项请参考《[docs/resend.md](docs/resend.md)》。
+- 进入管理后台添加域名
+- 确认该域名符合格式（如 `mail.example.com`）
 
-## 自定义配置
+### 3) 域名能生成地址但收不到邮件
 
-可以通过修改 Worker 代码来自定义：
+- 检查该域名的 Email Routing / MX / Catch-all 是否已绑定 Worker
 
-- 邮箱地址生成规则
-- 邮件保存时间
-- 界面样式（`public/` 内的 HTML/CSS/JS）
-- 功能扩展
+### 4) 邮件详情为空或无法下载
 
-## 🛠️ 故障排除
-
-### 常见问题
-1. **邮件接收不到**
-   - 检查 Cloudflare 邮件路由配置是否正确
-   - 确认域名的 MX 记录设置
-   - 验证可用域名列表配置（管理页“域名管理”）
-
-2. **数据库连接错误**
-   - 确认 D1 数据库绑定名称为 TEMP_MAIL_DB
-   - 检查 wrangler.toml 中的数据库 ID 是否正确
-   - 运行 `wrangler d1 list` 确认数据库存在
-
-3. **登录问题**
-   - 确认 ADMIN_PASSWORD 环境变量已设置
-   - 检查 JWT_TOKEN 或 JWT_SECRET 配置
-   - 尝试清除浏览器缓存和 Cookie
-
-4. **界面显示异常**
-   - 确认静态资源路径配置正确
-   - 检查浏览器控制台是否有 JavaScript 错误
-   - 验证 CSS 文件加载是否正常
-
-5. **自动刷新不工作**
-   - 确认已选中邮箱地址
-   - 检查浏览器是否支持 Page Visibility API
-   - 查看网络连接是否稳定
-
-### 调试技巧
-- 使用 `wrangler dev` 进行本地调试
-- 查看 Worker 的实时日志：`wrangler tail`
-- 使用浏览器开发者工具检查网络请求
-- 检查 D1 数据库中的数据：`wrangler d1 execute TEMP_MAIL_DB --command "SELECT * FROM mailboxes LIMIT 10"`
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=idinging/freemail&type=Date)](https://www.star-history.com/#idinging/freemail&Date)
-
-## 联系方式
-
-- 微信：`iYear1213`
-
-## Buy me a coffee
-
-如果你觉得本项目对你有帮助，欢迎赞赏支持：
-
-<p align="left">
-  <img src="pic/alipay.jpg" alt="支付宝赞赏码" height="400" />
-  <img src="pic/weichat.jpg" alt="微信赞赏码" height="400" />
-</p>
-
+- 检查 `MAIL_EML`（R2）绑定是否正确
 
 ## 许可证
 
-Apache-2.0 license
+Apache-2.0
