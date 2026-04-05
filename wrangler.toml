@@ -7,7 +7,7 @@ compatibility_date = "2024-01-01"
 [[d1_databases]]
 binding = "TEMP_MAIL_DB"
 database_name = "mailfree" #你的d1数据库名称
-database_id = "788b4609-22be-45cb-b43a-b8df05110ab4" # 你的database_id
+database_id = "73377aa9-f24f-49e3-9776-f7bbb7b06549" # 你的database_id
 
 # 环境变量
 [vars]
